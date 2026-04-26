@@ -73,7 +73,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-slate-50">
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl md:grid-cols-2">
-          <div className="relative hidden bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-10 md:block">
+          <a href="https://struxai.nexusfinlabs.com" target="_blank" rel="noopener" className="relative hidden bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-10 transition hover:opacity-95 md:block">
             <div className="absolute -right-24 top-12 h-72 w-72 rounded-full border-2 border-cyan-400/15" />
             <div className="absolute -left-12 bottom-12 h-48 w-48 rounded-full border border-cyan-400/10" />
             <div className="relative">
@@ -93,7 +93,7 @@ export default function SignupPage() {
                 14 dias gratis en cualquier plan. Sin compromiso. Configura tu perfil y empieza a subir archivos en minutos.
               </p>
             </div>
-          </div>
+          </a>
 
           <div className="p-8 sm:p-12">
             <h2 className="text-2xl font-bold text-slate-900">Request access</h2>
