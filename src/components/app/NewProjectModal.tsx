@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { X } from "lucide-react";
+import { createProjectAction } from "@/app/app/projects/actions";
 
 const TYPES = [
   { value: "residencial", label: "Residencial" },
@@ -46,36 +46,21 @@ export default function NewProjectModal({
       return;
     }
     setSubmitting(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error("Sesión expirada");
-      setSubmitting(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        user_id: user.id,
-        name: name.trim(),
-        description: description.trim() || null,
-        project_type: projectType,
-        material_main: material,
-        jurisdiction,
-        cover_color: color,
-        status: "draft",
-      })
-      .select()
-      .single();
+    const result = await createProjectAction({
+      name,
+      description,
+      project_type: projectType,
+      material_main: material,
+      jurisdiction,
+      cover_color: color,
+    });
     setSubmitting(false);
-    if (error) {
-      toast.error("Error: " + error.message);
+    if (!result.ok) {
+      toast.error("Error: " + result.error);
       return;
     }
     toast.success("Proyecto creado");
-    onCreated(data);
+    onCreated(result.project);
   }
 
   return (
@@ -157,7 +142,7 @@ export default function NewProjectModal({
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 <option value="ES">España (CTE / EHE / EAE)</option>
-                <option value="EU">Eurocodigos</option>
+                <option value="EU">Eurocódigos</option>
                 <option value="US">USA (ACI / AISC)</option>
                 <option value="OTRO">Otro</option>
               </select>
