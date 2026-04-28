@@ -1,12 +1,16 @@
 // ============================================================
 // STRUXAI Storage - Decisión de tier
 // ============================================================
-// Reglas:
-//  - Si el usuario optó por STRUXAI Cloud y el archivo > umbral_supabase,
-//    intentar STRUXAI Cloud primero (139 GB en VPS, gratis).
-//  - Si no hay opt-in cloud, archivo > 50 MB → R2.
-//  - Archivos pequeños siempre en Supabase (rápido + RLS integrada).
-//  - Si se supera la cuota del tier elegido, fallback al siguiente.
+// Reglas (post-decisión: STRUXAI Cloud es default, R2 solo fallback):
+//  - ≤50 MB                     → Supabase Storage (rápido + RLS).
+//  - >50 MB y Cloud configurado → STRUXAI Cloud (VPS propio, 140 GB).
+//  - Si Cloud lleno o no configurado y R2 configurado → Cloudflare R2.
+//  - Si nada configurado → Supabase con warning.
+//
+// El antiguo "opt-in" sigue existiendo como override:
+//  - struxaiCloudOptin === false  →  forzar R2 si está configurado
+//    (útil si quieres usar R2 pese a tener Cloud disponible).
+//  - struxaiCloudOptin === true (default)  →  Cloud preferido.
 // ============================================================
 
 import { SUPABASE_MAX_BYTES, R2_MAX_BYTES, STRUXAI_CLOUD_MAX_BYTES } from "./constants";
@@ -21,6 +25,10 @@ export type TierDecision = {
 
 export type TierContext = {
   sizeBytes: number;
+  /**
+   * Si false, el usuario fuerza R2 aunque Cloud esté disponible.
+   * Default true: Cloud preferido.
+   */
   struxaiCloudOptin: boolean;
   struxaiCloudUsedBytes?: number;
   struxaiCloudQuotaBytes?: number;
@@ -33,7 +41,7 @@ export function decideTier(ctx: TierContext): TierDecision {
     sizeBytes,
     struxaiCloudOptin,
     struxaiCloudUsedBytes = 0,
-    struxaiCloudQuotaBytes = 50 * 1024 * 1024 * 1024, // 50 GB default
+    struxaiCloudQuotaBytes = 100 * 1024 * 1024 * 1024, // 100 GB default
     r2Configured,
     struxaiCloudConfigured,
   } = ctx;
@@ -42,6 +50,7 @@ export function decideTier(ctx: TierContext): TierDecision {
     return {
       tier: "supabase",
       reason: "El archivo supera 10 GB (límite UI). Reduce o divide.",
+      warning: "10 GB es el tope por archivo en STRUXAI.",
     };
   }
 
@@ -50,31 +59,31 @@ export function decideTier(ctx: TierContext): TierDecision {
     return { tier: "supabase", reason: "Archivo pequeño (≤50 MB), usa Supabase Storage." };
   }
 
-  // Cloud opt-in tiene prioridad si está activo y configurado y entra en cuota
-  if (
-    struxaiCloudOptin &&
-    struxaiCloudConfigured &&
-    struxaiCloudUsedBytes + sizeBytes <= struxaiCloudQuotaBytes
-  ) {
+  // STRUXAI Cloud es default si está configurado y la cuota del usuario no se llenó
+  // y el usuario no forzó R2 (struxaiCloudOptin = false).
+  const cloudHasRoom = struxaiCloudUsedBytes + sizeBytes <= struxaiCloudQuotaBytes;
+  if (struxaiCloudConfigured && struxaiCloudOptin !== false && cloudHasRoom) {
     return {
       tier: "struxai_cloud",
-      reason: "Opt-in STRUXAI Cloud activo, archivo se guarda en VPS propio.",
+      reason: "STRUXAI Cloud (VPS propio) — sin coste de egress, propiedad total.",
     };
   }
 
-  // R2 si está configurado y archivo cabe
+  // R2: o el usuario forzó R2 (optin=false), o Cloud está lleno/no configurado
   if (r2Configured && sizeBytes <= R2_MAX_BYTES) {
-    const warning =
-      struxaiCloudOptin && !struxaiCloudConfigured
-        ? "Opt-in STRUXAI Cloud activo pero VPS no está configurado, fallback a R2."
-        : undefined;
-    return { tier: "r2", reason: "Archivo grande (>50 MB), usa Cloudflare R2.", warning };
+    const warning = !struxaiCloudConfigured
+      ? "STRUXAI Cloud aún no configurado en este entorno; usando R2."
+      : !cloudHasRoom
+      ? "STRUXAI Cloud sin cuota disponible; fallback a R2."
+      : undefined;
+    return { tier: "r2", reason: "Cloudflare R2 (fallback >50 MB).", warning };
   }
 
-  // Fallback: avisar que necesita configurar tier para grandes
+  // Fallback: si no hay tier para grandes, devolvemos Supabase con aviso
   return {
     tier: "supabase",
-    reason: "Sin tier configurado para >50 MB. Configura R2 o STRUXAI Cloud.",
-    warning: "Faltan credenciales de R2 y STRUXAI Cloud. El upload puede fallar.",
+    reason: "Sin tier configurado para >50 MB. Configura STRUXAI Cloud o R2.",
+    warning:
+      "Faltan credenciales de STRUXAI Cloud y R2. Configura una de las dos para subir archivos grandes.",
   };
 }
