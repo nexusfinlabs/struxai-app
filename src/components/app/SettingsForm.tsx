@@ -129,8 +129,8 @@ export default function SettingsForm({
     professional_type: "calculista",
     notification_email: true,
     notification_inapp: true,
-    struxai_cloud_optin: false,
-    struxai_cloud_quota_gb: 50,
+    struxai_cloud_optin: true,
+    struxai_cloud_quota_gb: 100,
     ...initialSettings,
   });
   const [pending, startTransition] = useTransition();
@@ -202,7 +202,7 @@ export default function SettingsForm({
   }
 
   const r2Pct = r2UsedBytes / R2_FREE_TIER_BYTES;
-  const cloudQuotaBytes = (settings.struxai_cloud_quota_gb || 50) * 1024 * 1024 * 1024;
+  const cloudQuotaBytes = (settings.struxai_cloud_quota_gb || 100) * 1024 * 1024 * 1024;
   const cloudPct = struxaiCloudUsedBytes / cloudQuotaBytes;
 
   return (
@@ -322,27 +322,11 @@ export default function SettingsForm({
             </div>
           </div>
           <div className="flex items-start gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
-            <Cloud className="mt-0.5 h-5 w-5 text-cyan-500" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Cloudflare R2 (default &gt;50 MB)</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                10 GB gratis, sin egress. Hasta 5 GB single PUT (multipart hasta 5 TB).
-              </p>
-              <Bar pct={r2Pct} usedLabel={`${humanSize(r2UsedBytes)} / ${humanSize(R2_FREE_TIER_BYTES)}`} />
-              {r2Pct >= R2_WARN_THRESHOLD && (
-                <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="h-3 w-3" />
-                  Te acercas al límite gratuito de R2. Considera activar STRUXAI Cloud abajo.
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-start gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
             <HardDrive className="mt-0.5 h-5 w-5 text-emerald-500" />
             <div className="flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Migrar gratis a STRUXAI Cloud
+                  STRUXAI Cloud (default &gt;50 MB)
                 </p>
                 <label className="inline-flex cursor-pointer items-center gap-2">
                   <input
@@ -351,38 +335,51 @@ export default function SettingsForm({
                     onChange={(e) => setSettings((s) => ({ ...s, struxai_cloud_optin: e.target.checked }))}
                     className="h-4 w-4 rounded border-slate-300"
                   />
-                  <span className="text-xs text-slate-600 dark:text-slate-300">Activado</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Preferido</span>
                 </label>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Servidor propio en VPS (~139 GB libres). Cuando se active, los archivos &gt;50 MB irán aquí en
-                lugar de a R2. Si tu uso supera la cuota, fallback automático a R2.
+                Servidor propio en VPS (~140 GB libres, sin coste de egress, propiedad total).
+                Activado: archivos &gt;50 MB van aquí. Si tu cuota se llena, fallback automático a R2.
+                Desactiva esta casilla solo si quieres forzar el uso de Cloudflare R2.
               </p>
-              {settings.struxai_cloud_optin && (
-                <>
-                  <div className="mt-3">
-                    <label className="block text-xs font-mono uppercase tracking-widest text-slate-500">
-                      Cuota personal (GB)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={130}
-                      value={settings.struxai_cloud_quota_gb || 50}
-                      onChange={(e) =>
-                        setSettings((s) => ({ ...s, struxai_cloud_quota_gb: Number(e.target.value) }))
-                      }
-                      className="mt-1 w-32 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                    />
-                  </div>
-                  <Bar pct={cloudPct} usedLabel={`${humanSize(struxaiCloudUsedBytes)} / ${humanSize(cloudQuotaBytes)}`} />
-                  {cloudPct >= 0.9 && (
-                    <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                      <AlertTriangle className="h-3 w-3" />
-                      Estás usando STRUXAI Cloud al máximo. Próximas subidas grandes irán a R2.
-                    </p>
-                  )}
-                </>
+              <div className="mt-3">
+                <label className="block text-xs font-mono uppercase tracking-widest text-slate-500">
+                  Cuota personal (GB)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={130}
+                  value={settings.struxai_cloud_quota_gb || 100}
+                  onChange={(e) =>
+                    setSettings((s) => ({ ...s, struxai_cloud_quota_gb: Number(e.target.value) }))
+                  }
+                  className="mt-1 w-32 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                />
+              </div>
+              <Bar pct={cloudPct} usedLabel={`${humanSize(struxaiCloudUsedBytes)} / ${humanSize(cloudQuotaBytes)}`} />
+              {cloudPct >= 0.9 && (
+                <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-3 w-3" />
+                  Estás usando STRUXAI Cloud al máximo. Próximas subidas grandes irán a R2 (si está configurado).
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+            <Cloud className="mt-0.5 h-5 w-5 text-cyan-500" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Cloudflare R2 (fallback)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Solo se usa si STRUXAI Cloud está lleno o desactivado. 10 GB gratis, sin egress.
+              </p>
+              <Bar pct={r2Pct} usedLabel={`${humanSize(r2UsedBytes)} / ${humanSize(R2_FREE_TIER_BYTES)}`} />
+              {r2Pct >= R2_WARN_THRESHOLD && (
+                <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-3 w-3" />
+                  Te acercas al límite gratuito de R2.
+                </p>
               )}
             </div>
           </div>
