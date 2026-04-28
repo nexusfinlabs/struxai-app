@@ -1,0 +1,21 @@
+[Unit]
+Description=STRUXAI Cloud (large file storage backend)
+After=network.target
+
+[Service]
+Type=simple
+User=struxai
+Group=struxai
+EnvironmentFile=/etc/struxai-cloud.env
+WorkingDirectory=/opt/struxai-cloud
+ExecStart=/usr/bin/node /opt/struxai-cloud/server.mjs
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/srv/struxai-cloud /var/log/struxai-cloud
+
+[Install]
+WantedBy=multi-user.target
