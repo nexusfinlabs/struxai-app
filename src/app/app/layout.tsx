@@ -17,10 +17,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .single();
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
       <Sidebar profile={profile} />
       <main className="flex-1 overflow-x-hidden p-6 md:p-10">{children}</main>
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors theme="system" />
     </div>
   );
 }
