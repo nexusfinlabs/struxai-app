@@ -92,16 +92,14 @@ set max_files_per_month = 40, max_compute_hours = 40, max_storage_gb = 40, max_e
     ]'::jsonb
 where id = 'premium';
 
--- ENTERPRISE (2999 EUR/mes)
--- Nota: storage = 40 GB tal y como pidió el usuario; revisar si tiene
--- sentido frente a Premium (mismo storage por 50% más precio).
+-- ENTERPRISE (2999 EUR/mes) — 100 GB storage (2.5x Premium)
 update public.plans
-set max_files_per_month = 50, max_compute_hours = 50, max_storage_gb = 40, max_engines = 99, max_users = 5,
+set max_files_per_month = 50, max_compute_hours = 50, max_storage_gb = 100, max_engines = 99, max_users = 5,
     features = '[
       "Todos los motores simultáneos",
       "50 archivos al mes",
       "50 h de cálculo al mes",
-      "40 GB storage",
+      "100 GB storage",
       "Memorias White-label por país",
       "Equipo hasta 5 personas",
       "Comparativa de revisiones",
