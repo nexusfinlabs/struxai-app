@@ -34,15 +34,14 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isAuthPage = path === "/login" || path === "/signup";
   const isAppRoute = path.startsWith("/app");
-  const isCallback = path.startsWith("/auth/callback");
 
+  // Solo bloqueamos rutas /app sin sesión.
+  // /login y /signup SIEMPRE se renderizan — la página decide si mostrar
+  // formulario o "account picker" cuando ya hay cookie. Esto permite
+  // cambiar de cuenta sin tener que hacer logout primero desde dentro.
   if (!user && isAppRoute) {
     return NextResponse.redirect(new URL("/login", request.url));
-  }
-  if (user && isAuthPage && !isCallback) {
-    return NextResponse.redirect(new URL("/app/profile", request.url));
   }
 
   return response;
