@@ -159,10 +159,25 @@ export default function SettingsForm({
     const matsNext = isOn
       ? (settings.enabled_materials || []).filter((x) => x !== matId)
       : [...(settings.enabled_materials || []), matId];
+
     let normsNext = settings.enabled_normatives || [];
     if (!isOn) {
+      // Activar material → añadir auto-normativas que falten
       mat.auto.forEach((n) => {
         if (!normsNext.includes(n)) normsNext = [...normsNext, n];
+      });
+    } else {
+      // Desactivar material → quitar auto-normativas, pero solo si NINGÚN
+      // otro material activo las sigue requiriendo. Ej: si quito "mixta"
+      // pero "metálica" sigue activa, EAE permanece.
+      const stillRequired = new Set<string>();
+      MATERIALS.forEach((m) => {
+        if (matsNext.includes(m.id)) m.auto.forEach((n) => stillRequired.add(n));
+      });
+      mat.auto.forEach((n) => {
+        if (!stillRequired.has(n)) {
+          normsNext = normsNext.filter((x) => x !== n);
+        }
       });
     }
     setSettings((s) => ({ ...s, enabled_materials: matsNext, enabled_normatives: normsNext }));
@@ -340,8 +355,8 @@ export default function SettingsForm({
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Servidor propio en VPS (~140 GB libres, sin coste de egress, propiedad total).
-                Activado: archivos &gt;50 MB van aquí. Si tu cuota se llena, fallback automático a R2.
-                Desactiva esta casilla solo si quieres forzar el uso de Cloudflare R2.
+                Activado: archivos &gt;50 MB van aquí. Si tu cuota se llena, fallback automático a S3.
+                Desactiva esta casilla solo si quieres forzar el uso del proveedor S3 configurado.
               </p>
               <div className="mt-3">
                 <label className="block text-xs font-mono uppercase tracking-widest text-slate-500">
@@ -362,7 +377,7 @@ export default function SettingsForm({
               {cloudPct >= 0.9 && (
                 <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3 w-3" />
-                  Estás usando STRUXAI Cloud al máximo. Próximas subidas grandes irán a R2 (si está configurado).
+                  Estás usando STRUXAI Cloud al máximo. Próximas subidas grandes irán al fallback S3 (si está configurado).
                 </p>
               )}
             </div>
@@ -370,15 +385,16 @@ export default function SettingsForm({
           <div className="flex items-start gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
             <Cloud className="mt-0.5 h-5 w-5 text-cyan-500" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Cloudflare R2 (fallback)</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Almacenamiento S3 (fallback)</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Solo se usa si STRUXAI Cloud está lleno o desactivado. 10 GB gratis, sin egress.
+                Compatible con Cloudflare R2 (10 GB gratis, sin egress) y cualquier proveedor S3-compatible.
+                Solo se usa si STRUXAI Cloud está lleno o desactivado.
               </p>
               <Bar pct={r2Pct} usedLabel={`${humanSize(r2UsedBytes)} / ${humanSize(R2_FREE_TIER_BYTES)}`} />
               {r2Pct >= R2_WARN_THRESHOLD && (
                 <p className="mt-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3 w-3" />
-                  Te acercas al límite gratuito de R2.
+                  Te acercas al límite gratuito.
                 </p>
               )}
             </div>
