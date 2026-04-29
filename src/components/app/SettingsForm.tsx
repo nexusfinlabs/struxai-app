@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Hammer, Building, Calculator, Cloud, Database, HardDrive, AlertTriangle, Save } from "lucide-react";
+import { Hammer, Building, Calculator, Mountain, Cloud, Database, HardDrive, AlertTriangle, Save } from "lucide-react";
 import { humanSize, R2_FREE_TIER_BYTES, R2_WARN_THRESHOLD } from "@/lib/storage/constants";
 
 type Settings = {
@@ -49,9 +49,9 @@ const PRESETS = [
   },
   {
     id: "calculista",
-    label: "Calculista estructural",
+    label: "Calculista (España)",
     icon: Calculator,
-    description: "Dimensionado completo, ELU/ELS, FEM, memoria firmable visada.",
+    description: "Dimensionado completo, ELU/ELS, FEM, memoria visada COAATIE.",
     defaults: {
       enabled_engines: ["sap2000", "etabs", "cypecad"],
       enabled_normatives: ["cte-db-se", "cte-db-se-ae", "cte-db-si", "ehe-08", "eae", "ncse-02"],
@@ -59,9 +59,22 @@ const PRESETS = [
       enabled_template: "visado",
     },
   },
+  {
+    id: "calculista-cl",
+    label: "Calculista (Chile) 🇨🇱",
+    icon: Mountain,
+    description: "Diseño sísmico chileno: NCh 433, NCh 2369, DS 60/61. Para zonas 1, 2 y 3.",
+    defaults: {
+      enabled_engines: ["sap2000", "etabs"],
+      enabled_normatives: ["nch-433", "nch-3171", "nch-1537", "nch-432", "nch-430", "nch-427", "nch-2369", "ds-60", "ds-61"],
+      enabled_materials: ["hormigon", "metalica"],
+      enabled_template: "visado",
+    },
+  },
 ];
 
-const NORMATIVES = [
+// Normativas España + EU
+const NORMATIVES_ES = [
   { id: "cte-db-se", label: "CTE DB-SE", desc: "Seguridad estructural (España)" },
   { id: "cte-db-se-ae", label: "CTE DB-SE-AE", desc: "Acciones en la edificación" },
   { id: "cte-db-si", label: "CTE DB-SI", desc: "Seguridad contra incendio" },
@@ -70,14 +83,29 @@ const NORMATIVES = [
   { id: "ncse-02", label: "NCSE-02", desc: "Sismorresistente" },
   { id: "cte-db-se-m", label: "CTE DB-SE-M", desc: "Madera estructural" },
   { id: "cte-db-se-f", label: "CTE DB-SE-F", desc: "Fábrica / mampostería" },
-  { id: "ec0", label: "Eurocodigo 0", desc: "Bases de proyecto" },
-  { id: "ec1", label: "Eurocodigo 1", desc: "Acciones" },
-  { id: "ec2", label: "Eurocodigo 2", desc: "Hormigon (EN 1992)" },
-  { id: "ec3", label: "Eurocodigo 3", desc: "Acero (EN 1993)" },
-  { id: "ec4", label: "Eurocodigo 4", desc: "Mixta (EN 1994)" },
-  { id: "ec8", label: "Eurocodigo 8", desc: "Sismico (EN 1998)" },
+  { id: "ec0", label: "Eurocódigo 0", desc: "Bases de proyecto" },
+  { id: "ec1", label: "Eurocódigo 1", desc: "Acciones" },
+  { id: "ec2", label: "Eurocódigo 2", desc: "Hormigón (EN 1992)" },
+  { id: "ec3", label: "Eurocódigo 3", desc: "Acero (EN 1993)" },
+  { id: "ec4", label: "Eurocódigo 4", desc: "Mixta (EN 1994)" },
+  { id: "ec8", label: "Eurocódigo 8", desc: "Sísmico (EN 1998)" },
   { id: "ncsp-07", label: "NCSP-07", desc: "Puentes — sismo" },
   { id: "rom-0-5-05", label: "ROM 0.5-05", desc: "Obra marítima" },
+];
+
+// Normativas Chile (sismo + diseño estructural)
+const NORMATIVES_CL = [
+  { id: "nch-433", label: "NCh 433", desc: "Diseño sísmico de edificios (DS 61)" },
+  { id: "nch-2369", label: "NCh 2369", desc: "Sísmico industrial e instalaciones" },
+  { id: "nch-2745", label: "NCh 2745", desc: "Edificios con aislación sísmica" },
+  { id: "nch-3171", label: "NCh 3171", desc: "Disposiciones generales y combinaciones" },
+  { id: "nch-1537", label: "NCh 1537", desc: "Cargas permanentes y sobrecargas" },
+  { id: "nch-432", label: "NCh 432", desc: "Acción del viento" },
+  { id: "nch-430", label: "NCh 430", desc: "Hormigón armado (basada en ACI 318)" },
+  { id: "nch-427", label: "NCh 427", desc: "Acero estructural (basada en AISC)" },
+  { id: "nch-1198", label: "NCh 1198", desc: "Madera estructural" },
+  { id: "ds-60", label: "DS 60", desc: "Decreto MINVU — diseño hormigón armado" },
+  { id: "ds-61", label: "DS 61", desc: "Decreto MINVU — actualiza NCh 433 (post 27F)" },
 ];
 
 const ENGINES = [
@@ -136,9 +164,11 @@ export default function SettingsForm({
   const [pending, startTransition] = useTransition();
 
   function toggle<K extends keyof Settings>(key: K, value: string) {
-    const arr = ((settings[key] as any) || []) as string[];
-    const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
-    setSettings((s) => ({ ...s, [key]: next as any }));
+    setSettings((s) => {
+      const arr = ((s[key] as any) || []) as string[];
+      const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
+      return { ...s, [key]: next as any };
+    });
   }
 
   function applyPreset(presetId: string) {
@@ -152,35 +182,40 @@ export default function SettingsForm({
     toast.success(`Preset aplicado: ${preset.label}`);
   }
 
+  // Bulletproof: usa functional setState, calcula todo dentro del callback
+  // para evitar stale closures cuando hay clicks rápidos consecutivos.
   function toggleMaterial(matId: string) {
-    const isOn = (settings.enabled_materials || []).includes(matId);
     const mat = MATERIALS.find((m) => m.id === matId);
     if (!mat) return;
-    const matsNext = isOn
-      ? (settings.enabled_materials || []).filter((x) => x !== matId)
-      : [...(settings.enabled_materials || []), matId];
+    setSettings((s) => {
+      const current = s.enabled_materials || [];
+      const isOn = current.includes(matId);
+      const matsNext = isOn
+        ? current.filter((x) => x !== matId)
+        : [...current, matId];
 
-    let normsNext = settings.enabled_normatives || [];
-    if (!isOn) {
-      // Activar material → añadir auto-normativas que falten
-      mat.auto.forEach((n) => {
-        if (!normsNext.includes(n)) normsNext = [...normsNext, n];
-      });
-    } else {
-      // Desactivar material → quitar auto-normativas, pero solo si NINGÚN
-      // otro material activo las sigue requiriendo. Ej: si quito "mixta"
-      // pero "metálica" sigue activa, EAE permanece.
-      const stillRequired = new Set<string>();
-      MATERIALS.forEach((m) => {
-        if (matsNext.includes(m.id)) m.auto.forEach((n) => stillRequired.add(n));
-      });
-      mat.auto.forEach((n) => {
-        if (!stillRequired.has(n)) {
-          normsNext = normsNext.filter((x) => x !== n);
-        }
-      });
-    }
-    setSettings((s) => ({ ...s, enabled_materials: matsNext, enabled_normatives: normsNext }));
+      let normsNext = s.enabled_normatives || [];
+      if (!isOn) {
+        // Activar material → añadir auto-normativas que falten
+        mat.auto.forEach((n) => {
+          if (!normsNext.includes(n)) normsNext = [...normsNext, n];
+        });
+      } else {
+        // Desactivar material → quitar auto-normativas, pero solo si NINGÚN
+        // otro material activo las sigue requiriendo. Ej: si quito "mixta"
+        // pero "metálica" sigue activa, EAE permanece.
+        const stillRequired = new Set<string>();
+        MATERIALS.forEach((m) => {
+          if (matsNext.includes(m.id)) m.auto.forEach((n) => stillRequired.add(n));
+        });
+        mat.auto.forEach((n) => {
+          if (!stillRequired.has(n)) {
+            normsNext = normsNext.filter((x) => x !== n);
+          }
+        });
+      }
+      return { ...s, enabled_materials: matsNext, enabled_normatives: normsNext };
+    });
   }
 
   async function save() {
@@ -223,7 +258,7 @@ export default function SettingsForm({
   return (
     <div className="mt-8 space-y-8">
       <Section title="Tipo de profesional" subtitle="Elige un preset para autoconfigurar normativas y motores. Puedes ajustar después.">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {PRESETS.map((p) => {
             const Icon = p.icon;
             const active = settings.professional_type === p.id;
@@ -263,7 +298,24 @@ export default function SettingsForm({
 
       <Section title="Normativas estructurales (España + EU)" subtitle="Selecciona las normativas aplicables a tus cálculos.">
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-          {NORMATIVES.map((n) => (
+          {NORMATIVES_ES.map((n) => (
+            <ToggleCard
+              key={n.id}
+              label={n.label}
+              description={n.desc}
+              checked={(settings.enabled_normatives || []).includes(n.id)}
+              onChange={() => toggle("enabled_normatives", n.id)}
+            />
+          ))}
+        </div>
+      </Section>
+
+      <Section
+        title="🇨🇱 Normativas Chile (sismo + diseño estructural)"
+        subtitle="Norma Chilena (NCh) y Decretos Supremos MINVU. Las claves NCh 433 + DS 61 cubren el diseño sísmico tras el terremoto del 27F (M 8,8)."
+      >
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {NORMATIVES_CL.map((n) => (
             <ToggleCard
               key={n.id}
               label={n.label}
