@@ -6,58 +6,64 @@
 --   * projects.project_type, material_main, size_bytes, cover_color
 --   * Ampliar enums file_type y output_kind para BIM/IFC y Memorias
 --   * files: external_storage_provider, external_url, category, checksum
---   * user_settings: theme, density, language, professional_type,
---     enabled_normatives ya existe, ampliamos enabled_engines defaults,
---     storage_tier_optin (opt-in STRUXAI Cloud)
+--   * user_settings: theme, density, language, professional_type, etc.
 --   * Nueva tabla signed_documents (memorias firmadas con sello)
 --   * Nuevos buckets y políticas Storage (cad/bim/memorias-in/out/firmadas)
+--
+-- Notas para aplicar:
+--   - Pega cada bloque por separado en SQL Editor si te da error con
+--     ALTER TYPE ADD VALUE en transacción.
+--   - Las políticas storage están hardcoded por bucket (no usar loop
+--     dinámico con format('%I') porque los guiones de los nombres de
+--     bucket rompen el quoting).
 -- ============================================================
 
-begin;
-
--- ---------- ENUM ampliations ----------
+-- ============================================================
+-- BLOQUE A: enums (file_type y output_kind ya existen, ampliamos)
+-- ============================================================
 do $$ begin
-  -- Añadir valores a file_type si no existen
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='file_type' and e.enumlabel='bim') then
-    alter type file_type add value if not exists 'bim';
+    alter type file_type add value 'bim';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='file_type' and e.enumlabel='memoria_in') then
-    alter type file_type add value if not exists 'memoria_in';
+    alter type file_type add value 'memoria_in';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='file_type' and e.enumlabel='memoria_out') then
-    alter type file_type add value if not exists 'memoria_out';
+    alter type file_type add value 'memoria_out';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='file_type' and e.enumlabel='memoria_firmada') then
-    alter type file_type add value if not exists 'memoria_firmada';
+    alter type file_type add value 'memoria_firmada';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='file_type' and e.enumlabel='otro') then
-    alter type file_type add value if not exists 'otro';
+    alter type file_type add value 'otro';
   end if;
-
-  -- Añadir valores a output_kind
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='output_kind' and e.enumlabel='ifc_out') then
-    alter type output_kind add value if not exists 'ifc_out';
+    alter type output_kind add value 'ifc_out';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='output_kind' and e.enumlabel='memoria_entrada') then
-    alter type output_kind add value if not exists 'memoria_entrada';
+    alter type output_kind add value 'memoria_entrada';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='output_kind' and e.enumlabel='memoria_salida') then
-    alter type output_kind add value if not exists 'memoria_salida';
+    alter type output_kind add value 'memoria_salida';
   end if;
   if not exists (select 1 from pg_enum e join pg_type t on e.enumtypid = t.oid
                  where t.typname='output_kind' and e.enumlabel='memoria_firmada') then
-    alter type output_kind add value if not exists 'memoria_firmada';
+    alter type output_kind add value 'memoria_firmada';
   end if;
+end $$;
 
-  -- Nuevos enums
+-- ============================================================
+-- BLOQUE B: nuevos enums + columnas en projects/files/user_settings
+-- ============================================================
+do $$ begin
   if not exists (select 1 from pg_type where typname = 'project_type') then
     create type project_type as enum ('residencial','comercial','industrial','infraestructura','rehabilitacion','otro');
   end if;
@@ -75,14 +81,12 @@ do $$ begin
   end if;
 end $$;
 
--- ---------- PROJECTS ampliations ----------
 alter table public.projects
   add column if not exists project_type project_type default 'otro',
   add column if not exists material_main material_main default 'hormigon',
   add column if not exists size_bytes bigint default 0,
   add column if not exists cover_color text default '#0ea5e9';
 
--- ---------- FILES ampliations ----------
 alter table public.files
   add column if not exists external_storage_provider storage_provider default 'supabase',
   add column if not exists external_url text,
@@ -93,7 +97,6 @@ alter table public.files
 create index if not exists idx_files_category on public.files(category);
 create index if not exists idx_files_provider on public.files(external_storage_provider);
 
--- ---------- USER SETTINGS ampliations ----------
 alter table public.user_settings
   add column if not exists theme theme_pref default 'system',
   add column if not exists density text default 'comfortable',
@@ -101,17 +104,18 @@ alter table public.user_settings
   add column if not exists professional_type professional_type default 'calculista',
   add column if not exists enabled_materials jsonb default '["hormigon","metalica"]'::jsonb,
   add column if not exists enabled_template text default 'standard',
-  add column if not exists struxai_cloud_optin boolean default false,
-  add column if not exists struxai_cloud_quota_gb integer default 50;
+  add column if not exists struxai_cloud_optin boolean default true,
+  add column if not exists struxai_cloud_quota_gb integer default 100;
 
--- Defaults nuevos para enabled_normatives y enabled_engines (no destructivo)
 update public.user_settings
   set enabled_normatives = '["cte-db-se","cte-db-se-ae","cte-db-si","ehe-08","eae","ncse-02"]'::jsonb
   where enabled_normatives is null
      or enabled_normatives = '[]'::jsonb
      or enabled_normatives::text = '["cte","ehe-08"]';
 
--- ---------- SIGNED DOCUMENTS ----------
+-- ============================================================
+-- BLOQUE C: signed_documents + buckets + políticas storage + trigger
+-- ============================================================
 create table if not exists public.signed_documents (
   id uuid default uuid_generate_v4() primary key,
   project_id uuid references public.projects on delete cascade,
@@ -137,8 +141,7 @@ drop policy if exists "Users CRUD own signed_docs" on public.signed_documents;
 create policy "Users CRUD own signed_docs" on public.signed_documents
   for all using (auth.uid() = user_id);
 
--- ---------- STORAGE BUCKETS ----------
--- Crear buckets si no existen (todos privados; se acceden con signed URLs).
+-- Buckets (privados, signed URLs).
 insert into storage.buckets (id, name, public, file_size_limit)
 values
   ('cad-uploads','cad-uploads', false, 52428800),
@@ -148,46 +151,79 @@ values
   ('memorias-firmadas','memorias-firmadas', false, 52428800)
 on conflict (id) do nothing;
 
--- ---------- STORAGE POLICIES ----------
--- Permitir a cada usuario CRUD sólo dentro de su carpeta {user_id}/...
-do $$
-declare
-  b text;
-begin
-  foreach b in array array['cad-uploads','bim-uploads','memorias-in','memorias-out','memorias-firmadas']
-  loop
-    execute format('drop policy if exists "user select %I" on storage.objects', b);
-    execute format('drop policy if exists "user insert %I" on storage.objects', b);
-    execute format('drop policy if exists "user update %I" on storage.objects', b);
-    execute format('drop policy if exists "user delete %I" on storage.objects', b);
-    execute format($p$
-      create policy "user select %1$s" on storage.objects
-      for select using (
-        bucket_id = %2$L and (auth.uid()::text = (storage.foldername(name))[1])
-      )
-    $p$, b, b);
-    execute format($p$
-      create policy "user insert %1$s" on storage.objects
-      for insert with check (
-        bucket_id = %2$L and (auth.uid()::text = (storage.foldername(name))[1])
-      )
-    $p$, b, b);
-    execute format($p$
-      create policy "user update %1$s" on storage.objects
-      for update using (
-        bucket_id = %2$L and (auth.uid()::text = (storage.foldername(name))[1])
-      )
-    $p$, b, b);
-    execute format($p$
-      create policy "user delete %1$s" on storage.objects
-      for delete using (
-        bucket_id = %2$L and (auth.uid()::text = (storage.foldername(name))[1])
-      )
-    $p$, b, b);
-  end loop;
-end $$;
+-- Políticas storage por bucket (hardcoded; el loop con format('%I') rompía
+-- el quoting de nombres con guiones).
+-- cad-uploads
+drop policy if exists "user select cad-uploads" on storage.objects;
+drop policy if exists "user insert cad-uploads" on storage.objects;
+drop policy if exists "user update cad-uploads" on storage.objects;
+drop policy if exists "user delete cad-uploads" on storage.objects;
+create policy "user select cad-uploads" on storage.objects
+  for select using (bucket_id = 'cad-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user insert cad-uploads" on storage.objects
+  for insert with check (bucket_id = 'cad-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user update cad-uploads" on storage.objects
+  for update using (bucket_id = 'cad-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user delete cad-uploads" on storage.objects
+  for delete using (bucket_id = 'cad-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
 
--- ---------- TRIGGER: actualizar projects.size_bytes ----------
+-- bim-uploads
+drop policy if exists "user select bim-uploads" on storage.objects;
+drop policy if exists "user insert bim-uploads" on storage.objects;
+drop policy if exists "user update bim-uploads" on storage.objects;
+drop policy if exists "user delete bim-uploads" on storage.objects;
+create policy "user select bim-uploads" on storage.objects
+  for select using (bucket_id = 'bim-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user insert bim-uploads" on storage.objects
+  for insert with check (bucket_id = 'bim-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user update bim-uploads" on storage.objects
+  for update using (bucket_id = 'bim-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user delete bim-uploads" on storage.objects
+  for delete using (bucket_id = 'bim-uploads' and (auth.uid()::text = (storage.foldername(name))[1]));
+
+-- memorias-in
+drop policy if exists "user select memorias-in" on storage.objects;
+drop policy if exists "user insert memorias-in" on storage.objects;
+drop policy if exists "user update memorias-in" on storage.objects;
+drop policy if exists "user delete memorias-in" on storage.objects;
+create policy "user select memorias-in" on storage.objects
+  for select using (bucket_id = 'memorias-in' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user insert memorias-in" on storage.objects
+  for insert with check (bucket_id = 'memorias-in' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user update memorias-in" on storage.objects
+  for update using (bucket_id = 'memorias-in' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user delete memorias-in" on storage.objects
+  for delete using (bucket_id = 'memorias-in' and (auth.uid()::text = (storage.foldername(name))[1]));
+
+-- memorias-out
+drop policy if exists "user select memorias-out" on storage.objects;
+drop policy if exists "user insert memorias-out" on storage.objects;
+drop policy if exists "user update memorias-out" on storage.objects;
+drop policy if exists "user delete memorias-out" on storage.objects;
+create policy "user select memorias-out" on storage.objects
+  for select using (bucket_id = 'memorias-out' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user insert memorias-out" on storage.objects
+  for insert with check (bucket_id = 'memorias-out' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user update memorias-out" on storage.objects
+  for update using (bucket_id = 'memorias-out' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user delete memorias-out" on storage.objects
+  for delete using (bucket_id = 'memorias-out' and (auth.uid()::text = (storage.foldername(name))[1]));
+
+-- memorias-firmadas
+drop policy if exists "user select memorias-firmadas" on storage.objects;
+drop policy if exists "user insert memorias-firmadas" on storage.objects;
+drop policy if exists "user update memorias-firmadas" on storage.objects;
+drop policy if exists "user delete memorias-firmadas" on storage.objects;
+create policy "user select memorias-firmadas" on storage.objects
+  for select using (bucket_id = 'memorias-firmadas' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user insert memorias-firmadas" on storage.objects
+  for insert with check (bucket_id = 'memorias-firmadas' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user update memorias-firmadas" on storage.objects
+  for update using (bucket_id = 'memorias-firmadas' and (auth.uid()::text = (storage.foldername(name))[1]));
+create policy "user delete memorias-firmadas" on storage.objects
+  for delete using (bucket_id = 'memorias-firmadas' and (auth.uid()::text = (storage.foldername(name))[1]));
+
+-- Trigger: actualizar projects.size_bytes
 create or replace function public.update_project_size()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -211,10 +247,8 @@ create trigger files_update_project_size
   after insert or update or delete on public.files
   for each row execute function public.update_project_size();
 
-commit;
-
 -- ============================================================
--- Verificación rápida (ejecutar después si quieres):
+-- Verificación rápida:
 -- select id, name, project_type, material_main, size_bytes from public.projects limit 5;
 -- select id, type, category, external_storage_provider from public.files limit 5;
 -- select user_id, theme, professional_type, struxai_cloud_optin from public.user_settings limit 5;
