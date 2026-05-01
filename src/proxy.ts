@@ -36,10 +36,6 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAppRoute = path.startsWith("/app");
 
-  // Solo bloqueamos rutas /app sin sesión.
-  // /login y /signup SIEMPRE se renderizan — la página decide si mostrar
-  // formulario o "account picker" cuando ya hay cookie. Esto permite
-  // cambiar de cuenta sin tener que hacer logout primero desde dentro.
   if (!user && isAppRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -55,6 +51,14 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = "/verify-email";
       return NextResponse.redirect(url);
+    }
+  }
+
+  if (user && isAppRoute) {
+    const isOAuthUser = (user.app_metadata?.provider || "email") !== "email";
+    const emailConfirmed = !!user.email_confirmed_at || isOAuthUser;
+    if (!emailConfirmed && path !== "/verify-email") {
+      return NextResponse.redirect(new URL("/verify-email", request.url));
     }
   }
 
