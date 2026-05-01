@@ -54,14 +54,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (user && isAppRoute) {
-    const isOAuthUser = (user.app_metadata?.provider || "email") !== "email";
-    const emailConfirmed = !!user.email_confirmed_at || isOAuthUser;
-    if (!emailConfirmed && path !== "/verify-email") {
-      return NextResponse.redirect(new URL("/verify-email", request.url));
-    }
-  }
-
   return response;
 }
 
