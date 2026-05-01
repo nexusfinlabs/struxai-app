@@ -61,6 +61,9 @@ export const CAD_ACCEPT: Record<string, string[]> = {
   "application/x-3ds": [".3ds"],
   "model/obj": [".obj"],
   "application/octet-stream": [...CAD_EXTENSIONS],
+  "application/pdf": [".pdf"],
+  "application/vnd.ms-excel": [".xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
 };
 
 // ---------- FORMATOS BIM / REVIT ----------
@@ -83,6 +86,9 @@ export const BIM_ACCEPT: Record<string, string[]> = {
   "application/x-step": [".ifc"],
   "application/ifc": [".ifc"],
   "application/zip": [".ifczip"],
+  "application/pdf": [".pdf"],
+  "application/vnd.ms-excel": [".xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
 };
 
 // ---------- MEMORIAS / OTROS ----------
