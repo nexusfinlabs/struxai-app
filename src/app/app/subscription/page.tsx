@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useTranslations } from "next-intl";
+import { useT } from "@/i18n/I18nProvider";
 
 type Plan = {
   id: string;
@@ -17,7 +17,7 @@ type Plan = {
 };
 
 export default function SubscriptionPage() {
-  const t = useTranslations();
+  const { t } = useT();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [showPopup, setShowPopup] = useState(false);
 

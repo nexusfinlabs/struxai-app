@@ -41,7 +41,21 @@ export async function proxy(request: NextRequest) {
   // formulario o "account picker" cuando ya hay cookie. Esto permite
   // cambiar de cuenta sin tener que hacer logout primero desde dentro.
   if (!user && isAppRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", path);
+    return NextResponse.redirect(url);
+  }
+
+  // Email no confirmado -> /verify-email (solo para rutas /app, OAuth exento)
+  if (user && isAppRoute) {
+    const isOAuthUser = (user.app_metadata?.provider || "email") !== "email";
+    const emailConfirmed = !!user.email_confirmed_at || isOAuthUser;
+    if (!emailConfirmed) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/verify-email";
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;
