@@ -43,6 +43,9 @@ export const CAD_EXTENSIONS = [
   ".skp",
   ".3ds",
   ".obj",
+  ".pdf",
+  ".xls",
+  ".xlsx",
 ] as const;
 
 export const CAD_ACCEPT: Record<string, string[]> = {
@@ -79,6 +82,9 @@ export const BIM_EXTENSIONS = [
   ".nwf",
   ".pln",
   ".pla",
+  ".pdf",
+  ".xls",
+  ".xlsx",
 ] as const;
 
 export const BIM_ACCEPT: Record<string, string[]> = {
