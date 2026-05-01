@@ -20,7 +20,6 @@ export default function SignupPage() {
     setLoading(true);
     setErr(null);
     const supabase = createClient();
-    await supabase.auth.signOut();
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -40,7 +39,6 @@ export default function SignupPage() {
 
   const handleGoogle = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin + "/auth/callback" },
