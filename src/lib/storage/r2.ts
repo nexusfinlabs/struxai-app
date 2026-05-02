@@ -61,6 +61,27 @@ export function presignR2Put(
   expiresSeconds: number = 3600,
   contentType?: string
 ): string {
+  return presignR2(cfg, "PUT", key, expiresSeconds);
+}
+
+/**
+ * Devuelve una URL presigned GET para descargar un objeto de R2.
+ * El navegador o cualquier cliente HTTP puede hacer fetch(url) directamente.
+ */
+export function presignR2Get(
+  cfg: R2Config,
+  key: string,
+  expiresSeconds: number = 3600
+): string {
+  return presignR2(cfg, "GET", key, expiresSeconds);
+}
+
+function presignR2(
+  cfg: R2Config,
+  method: "GET" | "PUT",
+  key: string,
+  expiresSeconds: number
+): string {
   const region = "auto";
   const service = "s3";
   const host = `${cfg.accountId}.r2.cloudflarestorage.com`;
@@ -97,7 +118,7 @@ export function presignR2Put(
   const canonicalHeaders = `host:${host}\n`;
   const payloadHash = "UNSIGNED-PAYLOAD";
   const canonicalRequest = [
-    "PUT",
+    method,
     path,
     canonicalQuery,
     canonicalHeaders,
