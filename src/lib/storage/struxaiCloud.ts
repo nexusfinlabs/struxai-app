@@ -69,3 +69,40 @@ export function buildCloudDownloadUrl(
 ): string {
   return `${cfg.endpoint.replace(/\/$/, "")}/download/${encodeURIComponent(fileId)}`;
 }
+
+export type CloudDownloadToken = {
+  user_id: string;
+  file_id: string;
+  exp: number;
+};
+
+/**
+ * Genera token HMAC para descarga directa desde el VPS.
+ * Mismo formato que el upload token: base64url(payload).base64url(sig).
+ * El servicio en el VPS debe validar firma + exp + ownership.
+ */
+export function signCloudDownloadToken(
+  cfg: StruxAICloudConfig,
+  payload: CloudDownloadToken
+): string {
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto
+    .createHmac("sha256", cfg.signingSecret)
+    .update(payloadB64)
+    .digest("base64url");
+  return `${payloadB64}.${sig}`;
+}
+
+/**
+ * URL completa para descargar incluyendo token en query string,
+ * adecuada para incrustar en <iframe>, <embed> o pasarla a un fetch
+ * client-side sin tener que añadir headers (necesario p.ej. para
+ * <embed src> en el visor PDF nativo).
+ */
+export function buildCloudDownloadUrlWithToken(
+  cfg: StruxAICloudConfig,
+  fileId: string,
+  token: string
+): string {
+  return `${buildCloudDownloadUrl(cfg, fileId)}?token=${encodeURIComponent(token)}`;
+}
