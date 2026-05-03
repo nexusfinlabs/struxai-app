@@ -47,6 +47,21 @@ export function isViewable(filename: string): boolean {
   return detectViewer(filename) !== "unsupported";
 }
 
+// Formatos CAD/BIM sobre los que STRUXAI puede operar (parsear/editar/regenerar).
+// Engloba la familia Autodesk (Revit, AutoCAD), IFC, intercambio neutro
+// (STEP, IGES) y mallas 3D editables. Se excluyen explícitamente PDF,
+// imágenes y documentos ofimáticos: para esos no ofrecemos edición todavía.
+const AI_EDITABLE_EXT = new Set<string>([
+  ...APS_EXT,
+  ...IFC_EXT,
+  ...THREE_EXT,
+  ".dxf",
+]);
+
+export function isAiEditable(filename: string): boolean {
+  return AI_EDITABLE_EXT.has(extOf(filename));
+}
+
 /** Extensión sin punto, en minúsculas. Útil para los loaders. */
 export function bareExt(filename: string): string {
   return extOf(filename).replace(/^\./, "");
